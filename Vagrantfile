@@ -3,7 +3,7 @@
 
 if ENV['no_proxy'] != nil or ENV['NO_PROXY']
   $no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
-  $no_proxy += ",192.168.125.0/27,10.0.2.15,172.30.0.0/16"
+  $no_proxy += ",192.168.125.0/27,10.0.2.15,172.30.1.1"
 end
 socks_proxy = ENV['socks_proxy'] || ENV['SOCKS_PROXY'] || ""
 

@@ -117,4 +117,14 @@ install_docker
 enable_containers
 download_oc
 
-sudo oc cluster up
+oc_cmd="sudo oc cluster up"
+if [ -n "${HTTP_PROXY:-}" ]; then
+    oc_cmd+=" --http-proxy $HTTP_PROXY"
+fi
+if [ -n "${HTTPS_PROXY:-}" ]; then
+    oc_cmd+=" --https-proxy $HTTPS_PROXY"
+fi
+if [ -n "${NO_PROXY:-}" ]; then
+    oc_cmd+=" --no-proxy $NO_PROXY"
+fi
+${oc_cmd}
