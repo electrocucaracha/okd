@@ -14,59 +14,16 @@ set -o errexit
 
 # install_docker() - Download and install docker-engine
 function install_docker {
-    local chameleonsocks_filename=chameleonsocks.sh
-
     if command -v docker; then
         return
     fi
-    echo "Installing docker service..."
-    curl -fsSL https://get.docker.com/ | sh
-    sudo mkdir -p /etc/{systemd/system/docker.service.d/,docker}
-    mkdir -p "$HOME/.docker/"
-    sudo mkdir -p /root/.docker/
-    sudo usermod -aG docker "$USER"
-
+    sudo mkdir -p /etc/docker
     echo "{ \"insecure-registries\" : [ \"172.30.0.0/16\" ] }" | sudo tee /etc/docker/daemon.json
 
-    if [ -n "${HTTP_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ] || [ -n "${NO_PROXY:-}" ]; then
-        config="{ \"proxies\": { \"default\": { "
-        if [ -n "${HTTP_PROXY:-}" ]; then
-            echo "[Service]" | sudo tee /etc/systemd/system/docker.service.d/http-proxy.conf
-            echo "Environment=\"HTTP_PROXY=$HTTP_PROXY\"" | sudo tee --append /etc/systemd/system/docker.service.d/http-proxy.conf
-            config+="\"httpProxy\": \"$HTTP_PROXY\","
-        fi
-        if [ -n "${HTTPS_PROXY:-}" ]; then
-            echo "[Service]" | sudo tee /etc/systemd/system/docker.service.d/https-proxy.conf
-            echo "Environment=\"HTTPS_PROXY=$HTTPS_PROXY\"" | sudo tee --append /etc/systemd/system/docker.service.d/https-proxy.conf
-            config+="\"httpsProxy\": \"$HTTPS_PROXY\","
-        fi
-        if [ -n "${NO_PROXY:-}" ]; then
-            echo "[Service]" | sudo tee /etc/systemd/system/docker.service.d/no-proxy.conf
-            echo "Environment=\"NO_PROXY=$NO_PROXY\"" | sudo tee --append /etc/systemd/system/docker.service.d/no-proxy.conf
-            config+="\"noProxy\": \"$NO_PROXY\","
-        fi
-        if [ -n "${SOCKS_PROXY:-}" ]; then
-            echo "[Service]" | sudo tee /etc/systemd/system/docker.service.d/socks-proxy.conf
-            echo "Environment=\"SOCKS_PROXY=$SOCKS_PROXY\"" | sudo tee --append /etc/systemd/system/docker.service.d/socks-proxy.conf
-        fi
-        echo "${config::-1} } } }" | tee "$HOME/.docker/config.json"
-        sudo cp "$HOME/.docker/config.json" /root/.docker/
-    elif [ -n "${SOCKS_PROXY:-}" ]; then
-        wget "https://raw.githubusercontent.com/crops/chameleonsocks/master/$chameleonsocks_filename"
-        chmod 755 "$chameleonsocks_filename"
-        socks_tmp="${SOCKS_PROXY#*//}"
-        sudo ./$chameleonsocks_filename --uninstall
-        sudo PROXY="${socks_tmp%:*}" PORT="${socks_tmp#*:}" ./$chameleonsocks_filename --install
-        rm $chameleonsocks_filename
-    fi
-    sudo systemctl daemon-reload
-    sudo systemctl restart docker
-
-    printf "Waiting for docker service..."
-    until sudo docker info; do
-        printf "."
-        sleep 2
-    done
+    KRD_ACTIONS=("install_docker")
+    KRD_ACTIONS_DECLARE=$(declare -p KRD_ACTIONS)
+    export KRD_ACTIONS_DECLARE
+    curl -fsSL https://raw.githubusercontent.com/electrocucaracha/krd/master/aio.sh | bash
 }
 
 # enable_containers() - Ensure that your firewall allows containers access to the OpenShift master API (8443/tcp) and DNS (53/udp) endpoints.
