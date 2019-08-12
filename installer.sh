@@ -40,10 +40,55 @@ function download_installer {
     tar -C /tmp -xzf "$okd_tarball"
     rm "$okd_tarball"
     sudo mv /tmp/openshift-install /usr/bin
+    sudo mv terraform /usr/local/bin
+    rm "$okd_tarball"
+    mkdir -p ~/.terraform.d/plugins
+}
+
+function install_matchbox {
+    local version="v0.8.0"
+    local tarball="matchbox-${version}-linux-amd64.tar.gz"
+
+    wget "https://github.com/poseidon/matchbox/releases/download/$version/$tarball"
+    sudo tar -C /tmp -xzf "$tarball"
+    rm "$tarball"
+    sudo mv "/tmp/${tarball%.tar.gz}/contrib/systemd/matchbox-local.service" /etc/systemd/system/matchbox.service
+    sudo mv "/tmp/${tarball%.tar.gz}/matchbox" /usr/local/bin
+
+    sudo useradd -U matchbox
+    sudo mkdir -p /var/lib/matchbox/assets
+    sudo chown -R matchbox: /var/lib/matchbox
+    sudo chown -R matchbox: /usr/local/bin/matchbox
+
+    sudo systemctl enable matchbox.service
+    sudo systemctl start matchbox.service
+}
+
+function _install_terraform {
+    local version="0.11.3"
+    local tarball="terraform_${version}_linux_amd64.zip"
+
+    wget "https://releases.hashicorp.com/terraform/$version/$tarball"
+    unzip "$tarball"
+    sudo mv terraform /usr/local/bin
+    rm "$tarball"
+    mkdir -p ~/.terraform.d/plugins
+}
+
+function install_terraform_matchbox_provider {
+    local version="v0.2.3"
+    local prefix="terraform-provider-matchbox"
+    local tarball="${prefix}-${version}-linux-amd64.tar.gz"
+
+    _install_terraform
+    wget "https://github.com/poseidon/$prefix/releases/download/$version/$tarball"
+    sudo tar -C /tmp -xzf "$tarball"
+    rm "$tarball"
+    sudo mv "/tmp/${tarball%.tar.gz}/$prefix" ~/.terraform.d/plugins/"${prefix}_${version}"
 }
 
 echo "Update repos and install dependencies..."
-COMMON_DISTRO_PKGS=(wget)
+COMMON_DISTRO_PKGS=(wget unzip)
 if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
     COMMON_DISTRO_PKGS=(git)
 fi
@@ -71,33 +116,15 @@ case ${ID,,} in
 esac
 ${INSTALLER_CMD}
 
+install_terraform_matchbox_provider
+install_matchbox
 if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
     build_installer
 else
     download_installer
 fi
 
-exit
 mkdir ~/bare-metal
-cat <<EOL > ~/bare-metal/install-config.yaml
-apiVersion: v1
-## The base domain of the cluster. All DNS records will be sub-domains of this base and will also include the cluster name.
-baseDomain: example.com
-compute:
-- name: worker
-  replicas: 1
-controlPlane:
-  name: master
-  replicas: 1
-metadata:
-  ## The name for the cluster
-  name: test
-platform:
-  none: {}
-## The pull secret that provides components in the cluster access to images for OpenShift components.
-pullSecret: ''
-## The default SSH key that will be programmed for \`core\` user.
-sshKey: ''
-EOL
+cp install-config.yaml ~/bare-metal/install-config.yaml
 /usr/bin/openshift-install --dir ~/bare-metal/ create ignition-configs
 /usr/bin/openshift-install create cluster

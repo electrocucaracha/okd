@@ -1,3 +1,4 @@
 .vagrant/
 *.swp
 .tox/
+install-config.yaml
