@@ -17,13 +17,6 @@ box = {
   :clearlinux => { :name => 'AntonioMeireles/ClearLinux', :version=> '28510' }
 }
 
-require 'yaml'
-pdf = File.dirname(__FILE__) + '/config/default.yml'
-if File.exist?(File.dirname(__FILE__) + '/config/pdf.yml')
-  pdf = File.dirname(__FILE__) + '/config/pdf.yml'
-end
-nodes = YAML.load_file(pdf)
-
 pullSecret_content = ENV['OKD_PULL_SECRET'] || ""
 # install-config.yaml file creation
 File.open(File.dirname(__FILE__) + "/install-config.yaml", "w") do |install_config_file|
@@ -31,14 +24,6 @@ File.open(File.dirname(__FILE__) + "/install-config.yaml", "w") do |install_conf
   install_config_file.puts("baseDomain: example.com") # The base domain of the cluster. All DNS records must be sub-domains of this base and include the cluster name.
   masters=0
   workers=0
-  nodes.each do |node|
-    if node['role'].include?("compute")
-      workers+=1
-    end
-    if node['role'].include?("compute")
-      masters+=1
-    end
-  end
   install_config_file.puts("compute:\n  - name: worker\n    replicas: #{workers}\n    platform: {}")
   install_config_file.puts("controlPlane:\n  hyperthreading: Enabled\n  name: master\n  replicas: #{masters}")
   install_config_file.puts("metadata:\n  name: test") # The cluster name that you specified in your DNS records.
@@ -53,11 +38,12 @@ File.open(File.dirname(__FILE__) + "/install-config.yaml", "w") do |install_conf
   install_config_file.puts("sshKey:") # The public portion of the default SSH key for the core user in Red Hat Enterprise Linux CoreOS (RHCOS). 
 end
 
-if ENV['no_proxy'] != nil or ENV['NO_PROXY']
-  $no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
-  $no_proxy += ",192.168.125.0/27,10.0.2.15,172.30.1.1"
+$no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
+# NOTE: This range is based on vagrant-libvirt network definition CIDR 192.168.121.0/24
+(1..254).each do |i|
+  $no_proxy += ",192.168.121.#{i}"
 end
-socks_proxy = ENV['socks_proxy'] || ENV['SOCKS_PROXY'] || ""
+$no_proxy += ",10.0.2.15,172.30.1.1"
 distro = (ENV['OKD_DISTRO'] || :fedora).to_sym
 
 Vagrant.configure("2") do |config|
@@ -66,10 +52,9 @@ Vagrant.configure("2") do |config|
 
   config.vm.box = box[distro][:name]
   config.vm.box_version = box[distro][:version]
-  config.vm.define :bootstrap, primary: true, autostart: false do |bootstrap|
-    bootstrap.vm.provision 'shell', privileged: false do |sh|
+  config.vm.define :aio do |aio|
+    aio.vm.provision 'shell', privileged: false do |sh|
       sh.env = {
-        'SOCKS_PROXY': "#{socks_proxy}",
         'OKD_VERSION': "v3.11.0",
 #        'OKD_VERSION': "v4.1.8",
 #        'OKD_SOURCE': "source",
@@ -79,18 +64,6 @@ Vagrant.configure("2") do |config|
         cd /vagrant/
         ./postinstall.sh | tee okd_install.log
       SHELL
-    end
-  end
-
-  nodes.each do |node|
-    config.vm.define node['name'] do |nodeconfig|
-      nodeconfig.vm.hostname = node['name']
-      [:virtualbox, :libvirt].each do |provider|
-        nodeconfig.vm.provider provider do |p, override|
-          p.cpus = node['cpus']
-          p.memory = node['memory']
-        end
-      end
     end
   end
 
@@ -114,8 +87,7 @@ Vagrant.configure("2") do |config|
   config.vm.provider 'libvirt' do |v, override|
     v.nested = true
     v.cpu_mode = 'host-passthrough'
-    v.management_network_address = "192.168.125.0/27"
-    v.management_network_name = "okd-mgmt-net"
+    v.management_network_address = "192.168.121.0/24"
     v.random_hostname = true
   end
 end

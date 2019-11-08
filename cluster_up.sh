@@ -15,24 +15,6 @@ if [ "${OKD_DEBUG:-false}" == "true" ]; then
     set -o xtrace
 fi
 
-# install_docker() - Download and install docker-engine
-function install_docker {
-    if command -v docker; then
-        return
-    fi
-    sudo mkdir -p /etc/docker
-    echo "{ \"insecure-registries\" : [ \"172.30.0.0/16\" ] }" | sudo tee /etc/docker/daemon.json
-
-    export KRD_DEBUG="${OKD_DEBUG:-false}"
-    KRD_ACTIONS=(install_docker)
-    if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
-        KRD_ACTIONS+=(install_go)
-    fi
-    KRD_ACTIONS_DECLARE=$(declare -p KRD_ACTIONS)
-    export KRD_ACTIONS_DECLARE
-    curl -fsSL https://raw.githubusercontent.com/electrocucaracha/krd/master/aio.sh | bash
-}
-
 # enable_containers() - Ensure that your firewall allows containers access to the OpenShift master API (8443/tcp) and DNS (53/udp) endpoints.
 function enable_containers {
     sudo firewall-cmd --permanent --new-zone dockerc
@@ -46,10 +28,12 @@ function enable_containers {
 # download_oc() - Download the Linux oc binary
 function download_oc {
     local okd_tarball="openshift-origin-client-tools-${OKD_VERSION}-0cbc58b-linux-64bit.tar.gz"
+
+    pushd "$(mktemp -d)"
     wget "https://github.com/openshift/origin/releases/download/${OKD_VERSION}/${okd_tarball}"
-    tar -C /tmp -xzf "$okd_tarball"
-    rm "$okd_tarball"
-    sudo mv "/tmp/${okd_tarball%.tar.gz}/"{oc,kubectl} /usr/bin
+    tar -xzf "$okd_tarball"
+    sudo mv "${okd_tarball%.tar.gz}/"{oc,kubectl} /usr/bin
+    popd
 }
 
 # build_oc() - Create binaries using the source code
@@ -66,41 +50,17 @@ function build_oc {
     popd
 }
 
-echo "Update repos and install dependencies..."
-COMMON_DISTRO_PKGS=(firewalld wget)
+okd_pkgs="docker firewalld wget krb5-devel bind-utils tito gpgme gpgme-devel libassuan libassuan-devel"
 if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
-    COMMON_DISTRO_PKGS+=(git jq make gcc zip mercurial bc rsync file createrepo openssl bsdtar)
+    okd_pkgs+=" git jq make gcc zip mercurial bc rsync file createrepo openssl bsdtar"
 fi
-# shellcheck disable=SC1091
-source /etc/os-release || source /usr/lib/os-release
-case ${ID,,} in
-    *suse)
-    INSTALLER_CMD="sudo -H -E zypper -q install -y --no-recommends ${COMMON_DISTRO_PKGS[*]}"
-    sudo zypper -n ref
-    ;;
 
-    ubuntu|debian)
-    INSTALLER_CMD="sudo -H -E apt-get -y -q=3 install ${COMMON_DISTRO_PKGS[*]}"
-    if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
-        INSTALLER_CMD+=" libkrb5-dev"
-    fi
-    sudo apt-get update
-    ;;
+echo "Update repos and install dependencies..."
+curl -fsSL http://bit.ly/pkgInstall | PKG_UDPATE=true PKG=$okd_pkgs bash
+echo "{ \"insecure-registries\" : [ \"172.30.0.0/16\" ] }" | sudo tee /etc/docker/daemon.json
+sudo systemctl restart docker
+sudo sudo systemctl --now enable firewalld
 
-    rhel|centos|fedora)
-    PKG_MANAGER=$(command -v dnf || command -v yum)
-    INSTALLER_CMD="sudo -H -E ${PKG_MANAGER} -q -y install ${COMMON_DISTRO_PKGS[*]}"
-    if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
-        INSTALLER_CMD+=" krb5-devel bind-utils tito gpgme gpgme-devel libassuan libassuan-devel"
-    fi
-    sudo "$PKG_MANAGER" updateinfo
-    ;;
-esac
-${INSTALLER_CMD}
-sudo sudo systemctl enable firewalld
-sudo sudo systemctl start firewalld
-
-install_docker
 enable_containers
 if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
     build_oc
