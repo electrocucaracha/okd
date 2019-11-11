@@ -44,7 +44,7 @@ $no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
   $no_proxy += ",192.168.121.#{i}"
 end
 $no_proxy += ",10.0.2.15,172.30.1.1"
-distro = (ENV['OKD_DISTRO'] || :fedora).to_sym
+distro = (ENV['OKD_DISTRO'] || :centos).to_sym
 
 Vagrant.configure("2") do |config|
   config.vm.provider :libvirt
@@ -52,6 +52,29 @@ Vagrant.configure("2") do |config|
 
   config.vm.box = box[distro][:name]
   config.vm.box_version = box[distro][:version]
+  # Upgrade Kernel version
+  config.vm.provision 'shell', privileged: false, inline: <<-SHELL
+    source /etc/os-release || source /usr/lib/os-release
+    case ${ID,,} in
+        rhel|centos|fedora)
+        PKG_MANAGER=$(command -v dnf || command -v yum)
+        INSTALLER_CMD="sudo -H -E ${PKG_MANAGER} -q -y install"
+        if ! sudo "$PKG_MANAGER" repolist | grep "epel/"; then
+            $INSTALLER_CMD epel-release
+        fi
+        sudo "$PKG_MANAGER" updateinfo
+        $INSTALLER_CMD kernel
+        sudo grub2-set-default 0
+        sudo grub2-mkconfig -o "$(sudo readlink -f /etc/grub2.cfg)"
+        ;;
+        clear-linux-os)
+        sudo mkdir -p /etc/kernel/cmdline.d
+        echo "module.sig_unenforce" | sudo tee /etc/kernel/cmdline.d/allow-unsigned-modules.conf
+        sudo clr-boot-manager update
+        ;;
+    esac
+  SHELL
+  config.vm.provision :reload
   config.vm.define :aio do |aio|
     aio.vm.provision 'shell', privileged: false do |sh|
       sh.env = {
@@ -80,7 +103,7 @@ Vagrant.configure("2") do |config|
 
   [:virtualbox, :libvirt].each do |provider|
     config.vm.provider provider do |p, override|
-      p.cpus = 4
+      p.cpus = 8
       p.memory = 32768
     end
   end
@@ -89,5 +112,14 @@ Vagrant.configure("2") do |config|
     v.cpu_mode = 'host-passthrough'
     v.management_network_address = "192.168.121.0/24"
     v.random_hostname = true
+
+    # Intel Corporation QuickAssist Technology
+    qat_devices = `for i in 0434 0435 37c8 6f54 19e2; do lspci -d 8086:$i -m; done|awk '{print $1}'`
+    qat_devices.split("\n").each do |dev|
+      bus=dev.split(':')[0]
+      slot=dev.split(':')[1].split('.')[0]
+      function=dev.split(':')[1].split('.')[1]
+      v.pci :bus => "0x#{bus}", :slot => "0x#{slot}", :function => "0x#{function}"
+    end
   end
 end
