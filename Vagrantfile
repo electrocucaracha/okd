@@ -52,29 +52,7 @@ Vagrant.configure("2") do |config|
 
   config.vm.box = box[distro][:name]
   config.vm.box_version = box[distro][:version]
-  # Upgrade Kernel version
-  config.vm.provision 'shell', privileged: false, inline: <<-SHELL
-    source /etc/os-release || source /usr/lib/os-release
-    case ${ID,,} in
-        rhel|centos|fedora)
-        PKG_MANAGER=$(command -v dnf || command -v yum)
-        INSTALLER_CMD="sudo -H -E ${PKG_MANAGER} -q -y install"
-        if ! sudo "$PKG_MANAGER" repolist | grep "epel/"; then
-            $INSTALLER_CMD epel-release
-        fi
-        sudo "$PKG_MANAGER" updateinfo
-        $INSTALLER_CMD kernel
-        sudo grub2-set-default 0
-        sudo grub2-mkconfig -o "$(sudo readlink -f /etc/grub2.cfg)"
-        ;;
-        clear-linux-os)
-        sudo mkdir -p /etc/kernel/cmdline.d
-        echo "module.sig_unenforce" | sudo tee /etc/kernel/cmdline.d/allow-unsigned-modules.conf
-        sudo clr-boot-manager update
-        ;;
-    esac
-  SHELL
-  config.vm.provision :reload
+  config.vm.synced_folder '.', '/vagrant', type: "rsync"
   config.vm.define :aio do |aio|
     aio.vm.provision 'shell', privileged: false do |sh|
       sh.env = {
@@ -85,7 +63,7 @@ Vagrant.configure("2") do |config|
       }
       sh.inline = <<-SHELL
         cd /vagrant/
-        ./postinstall.sh | tee okd_install.log
+        ./postinstall.sh | tee ~/okd_install.log
       SHELL
     end
   end

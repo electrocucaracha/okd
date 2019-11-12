@@ -58,7 +58,6 @@ fi
 echo "Update repos and install dependencies..."
 curl -fsSL http://bit.ly/pkgInstall | PKG_UDPATE=true PKG=$okd_pkgs bash
 echo "{ \"insecure-registries\" : [ \"172.30.0.0/16\" ] }" | sudo tee /etc/docker/daemon.json
-sudo systemctl restart docker
 sudo sudo systemctl --now enable firewalld
 
 enable_containers
@@ -67,6 +66,13 @@ if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
 else
     download_oc
 fi
+
+sudo systemctl restart docker
+printf "Waiting for docker service..."
+until sudo docker info; do
+    printf "."
+    sleep 2
+done
 
 oc_cmd="sudo /usr/bin/oc cluster up"
 if [ -n "${HTTP_PROXY:-}" ]; then
@@ -79,3 +85,7 @@ if [ -n "${NO_PROXY:-}" ]; then
     oc_cmd+=" --no-proxy $NO_PROXY"
 fi
 ${oc_cmd}
+
+mkdir -p ~/.kube
+sudo cp /root/.kube/config ~/.kube/
+sudo chown "$USER" ~/.kube/config
