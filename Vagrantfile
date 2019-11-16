@@ -9,15 +9,7 @@
 # http://www.apache.org/licenses/LICENSE-2.0
 ##############################################################################
 
-box = {
-  :ubuntu => { :name => 'elastic/ubuntu-16.04-x86_64', :version=> '20180210.0.0' },
-  :centos => { :name => 'centos/7', :version=> '1901.01' },
-  :fedora => { :name => 'fedora/29-cloud-base', :version=> '29.20181024.1' },
-  :opensuse => { :name => 'opensuse/openSUSE-42.1-x86_64', :version=> '1.0.0' },
-  :clearlinux => { :name => 'AntonioMeireles/ClearLinux', :version=> '28510' }
-}
-
-pullSecret_content = ENV['OKD_PULL_SECRET'] || ""
+pullSecret_content = ENV['OPENSHIFT_PULL_SECRET'] || ""
 # install-config.yaml file creation
 File.open(File.dirname(__FILE__) + "/install-config.yaml", "w") do |install_config_file|
   install_config_file.puts("apiVersion: v1")
@@ -44,28 +36,38 @@ $no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
   $no_proxy += ",192.168.121.#{i}"
 end
 $no_proxy += ",10.0.2.15,172.30.1.1"
-distro = (ENV['OKD_DISTRO'] || :centos).to_sym
 
 Vagrant.configure("2") do |config|
   config.vm.provider :libvirt
   config.vm.provider :virtualbox
 
-  config.vm.box = box[distro][:name]
-  config.vm.box_version = box[distro][:version]
-  config.vm.synced_folder '.', '/vagrant', type: "rsync"
-  config.vm.define :aio do |aio|
-    aio.vm.provision 'shell', privileged: false do |sh|
-      sh.env = {
-        'OKD_VERSION': "v3.11.0",
-#        'OKD_VERSION': "v4.1.8",
-#        'OKD_SOURCE': "source",
-        'OKD_DEBUG': "true"
-      }
-      sh.inline = <<-SHELL
-        cd /vagrant/
-        ./postinstall.sh | tee ~/okd_install.log
-      SHELL
-    end
+  config.vm.box = "centos/7"
+  config.vm.box_version = "1901.01"
+  # Upgrade Kernel version
+  config.vm.provision 'shell', privileged: false, inline: <<-SHELL
+    PKG_MANAGER=$(command -v dnf || command -v yum)
+    INSTALLER_CMD="sudo -H -E ${PKG_MANAGER} -q -y install"
+    if ! sudo "$PKG_MANAGER" repolist | grep "epel/"; then
+        $INSTALLER_CMD epel-release
+    fi
+    sudo "$PKG_MANAGER" updateinfo
+    $INSTALLER_CMD kernel
+    sudo grub2-set-default 0
+    sudo grub2-mkconfig -o "$(sudo readlink -f /etc/grub2.cfg)"
+  SHELL
+  config.vm.provision :reload
+  config.vm.provision 'shell', privileged: false do |sh|
+    sh.env = {
+      'DEBUG': "true"
+    }
+    sh.inline = <<-SHELL
+      cd /vagrant/
+      if [[ "${OPENSHIFT_DEPLOYMENT_TYPE:-okd}" == "okd" ]]; then
+          ./cluster_up.sh | tee ~/cluster_up.log
+      else
+          ./installer.sh | tee ~/installer.log
+      fi
+    SHELL
   end
 
   if ENV['http_proxy'] != nil and ENV['https_proxy'] != nil

@@ -11,12 +11,13 @@
 set -o nounset
 set -o pipefail
 set -o errexit
-if [ "${OKD_DEBUG:-false}" == "true" ]; then
+if [ "${DEBUG:-false}" == "true" ]; then
     set -o xtrace
 fi
 
 # enable_containers() - Ensure that your firewall allows containers access to the OpenShift master API (8443/tcp) and DNS (53/udp) endpoints.
 function enable_containers {
+    sudo sudo systemctl --now enable firewalld
     sudo firewall-cmd --permanent --new-zone dockerc
     sudo firewall-cmd --permanent --zone dockerc --add-source 172.17.0.0/16
     sudo firewall-cmd --permanent --zone dockerc --add-port 8443/tcp
@@ -25,47 +26,33 @@ function enable_containers {
     sudo firewall-cmd --reload
 }
 
-# download_oc() - Download the Linux oc binary
-function download_oc {
-    local okd_tarball="openshift-origin-client-tools-${OKD_VERSION}-0cbc58b-linux-64bit.tar.gz"
-
-    pushd "$(mktemp -d)"
-    wget "https://github.com/openshift/origin/releases/download/${OKD_VERSION}/${okd_tarball}"
-    tar -xzf "$okd_tarball"
-    sudo mv "${okd_tarball%.tar.gz}/"{oc,kubectl} /usr/bin
-    popd
-}
-
 # build_oc() - Create binaries using the source code
 function build_oc {
     if command -v oc; then
         return
     fi
 
-    export PATH="$PATH:/usr/local/go/bin"
-    git clone --depth 1 https://github.com/openshift/origin -b "${OKD_VERSION}" /tmp/origin
+    git clone --depth 1 -b v3.11.0 https://github.com/electrocucaracha/origin /tmp/origin
     pushd /tmp/origin
-    make
+    PATH="$PATH:/usr/local/go/bin" make
     sudo mv _output/local/bin/linux/amd64/* /usr/bin
     popd
 }
 
-okd_pkgs="docker firewalld wget krb5-devel bind-utils tito gpgme gpgme-devel libassuan libassuan-devel"
-if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
-    okd_pkgs+=" git jq make gcc zip mercurial bc rsync file createrepo openssl bsdtar"
-fi
+okd_pkgs="docker firewalld wget krb5-devel bind-utils tito gpgme"
+okd_pkgs+=" gpgme-devel libassuan libassuan-devel git jq make gcc zip"
+okd_pkgs+=" mercurial bc rsync file createrepo openssl bsdtar golang"
 
 echo "Update repos and install dependencies..."
-curl -fsSL http://bit.ly/pkgInstall | PKG_UDPATE=true PKG=$okd_pkgs bash
-echo "{ \"insecure-registries\" : [ \"172.30.0.0/16\" ] }" | sudo tee /etc/docker/daemon.json
-sudo sudo systemctl --now enable firewalld
+# NOTE: This shorten link is pointing to the cURL Package manager project(https://github.com/electrocucaracha/pkg-mgr)
+export PKG_UDPATE=true
+export PKG=$okd_pkgs
+export PKG_GOLANG_VERSION=1.12.7
+export PKG_DOCKER_INSECURE_REGISTRIES=172.30.0.0/16
+curl -fsSL http://bit.ly/pkgInstall | bash
 
 enable_containers
-if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
-    build_oc
-else
-    download_oc
-fi
+build_oc
 
 sudo systemctl restart docker
 printf "Waiting for docker service..."
