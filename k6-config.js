@@ -2,7 +2,7 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 export let options = {
   hosts: {
-    "www.qat-example.com": "127.0.0.1"
+    "www.example.com": "127.0.0.1"
   },
   vus: 10,
   duration: "20s",
@@ -14,7 +14,7 @@ export let options = {
   ]
 };
 export default function() {
-  let res = http.get("https://www.qat-example.com");
+  let res = http.get("https://www.example.com");
   check(res, {
     "status was 200": (r) => r.status == 200,
     "transaction time OK": (r) => r.timings.duration < 200

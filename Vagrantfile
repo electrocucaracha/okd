@@ -36,6 +36,7 @@ $no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
   $no_proxy += ",192.168.121.#{i}"
 end
 $no_proxy += ",10.0.2.15,172.30.1.1"
+$is_qat_enabled = ENV['OKD_ENABLE_QAT'] || "false"
 
 Vagrant.configure("2") do |config|
   config.vm.provider :libvirt
@@ -58,7 +59,8 @@ Vagrant.configure("2") do |config|
   config.vm.provision :reload
   config.vm.provision 'shell', privileged: false do |sh|
     sh.env = {
-      'DEBUG': "true"
+      'DEBUG': "true",
+      'QAT_ENABLED': "#{$is_qat_enabled}"
     }
     sh.inline = <<-SHELL
       cd /vagrant/
@@ -67,6 +69,8 @@ Vagrant.configure("2") do |config|
       else
           ./installer.sh | tee ~/installer.log
       fi
+      ./setup.sh | tee ~/setup.log
+      ./test.sh | tee ~/test.log
     SHELL
   end
 
@@ -93,13 +97,15 @@ Vagrant.configure("2") do |config|
     v.management_network_address = "192.168.121.0/24"
     v.random_hostname = true
 
-    # Intel Corporation QuickAssist Technology
-    qat_devices = `for i in 0434 0435 37c8 6f54 19e2; do lspci -d 8086:$i -m; done|awk '{print $1}'`
-    qat_devices.split("\n").each do |dev|
-      bus=dev.split(':')[0]
-      slot=dev.split(':')[1].split('.')[0]
-      function=dev.split(':')[1].split('.')[1]
-      v.pci :bus => "0x#{bus}", :slot => "0x#{slot}", :function => "0x#{function}"
-    end
+    if $is_qat_enabled == "true"
+      # Intel Corporation QuickAssist Technology
+      qat_devices = `for i in 0434 0435 37c8 6f54 19e2; do lspci -d 8086:$i -m; done|awk '{print $1}'`
+      qat_devices.split("\n").each do |dev|
+        bus=dev.split(':')[0]
+        slot=dev.split(':')[1].split('.')[0]
+        function=dev.split(':')[1].split('.')[1]
+        v.pci :bus => "0x#{bus}", :slot => "0x#{slot}", :function => "0x#{function}"
+      end
+   end
   end
 end

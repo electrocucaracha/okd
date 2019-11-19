@@ -35,8 +35,9 @@ if ! command -v jq; then
     $INSTALLER_CMD jq
 fi
 
-k6 run --out json=~/non-qat_results.json non-qat-k6-config.js
-k6 run --out json=~/qat_results.json qat-k6-config.js
+k6 run --out json=~/results.json k6-config.js
+for counter in $(sudo find /sys/kernel/debug -name fw_counters); do
+    sudo cat "$counter"
+done
 
-jq '. | select(.type=="Point" and .metric == "http_req_duration" and .data.tags.status >= "200") | .data.value' ~/non-qat_results.json | jq -s 'add/length'
-jq '. | select(.type=="Point" and .metric == "http_req_duration" and .data.tags.status >= "200") | .data.value' ~/qat_results.json | jq -s 'add/length'
+jq '. | select(.type=="Point" and .metric == "http_req_duration" and .data.tags.status >= "200") | .data.value' ~/results.json | jq -s 'add/length'

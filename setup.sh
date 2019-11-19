@@ -15,31 +15,30 @@ if [ "${OKD_DEBUG:-false}" == "true" ]; then
     set -o xtrace
 fi
 
-pushd router
-sudo docker build -t openshift/origin-clearlinux-haproxy-router .
-popd
-
 oc login -u system:admin
 
-# Create Non-QAT sample app
-oc new-project non-qat --display-name="OpenShift 3 non-QAT Sample" \
-    --description="This is an example project to demonstrate non-QAT router"
-oc adm policy add-scc-to-user hostnetwork -z router
-oc adm router non-qat-router --replicas=0 --ports='80:5080,443:5443' \
-    --stats-port=51937 --host-network=false
-oc set env dc/non-qat-router ROUTER_SERVICE_HTTP_PORT=5080 \
-    ROUTER_SERVICE_HTTPS_PORT=5443
-oc scale dc/non-qat-router --replicas=1
-oc new-app non-qat-application.json
+oc project default
+if [[ "${QAT_ENABLED:-false}" == "true" ]]; then
+    clear_img="openshift/origin-clearlinux-haproxy-router:v3.11.0"
+    sudo docker build -t "$clear_img" router
+    oc adm policy add-scc-to-user privileged -z router
+    oc adm router --images="$clear_img"
+else
+    oc adm policy add-scc-to-user hostnetwork -z router
+    oc adm router --extended-logging
+fi
 
-# Create QAT sample app
-oc new-project qat --display-name="OpenShift 3 QAT Sample" \
-    --description="This is an example project to demonstrate QAT router"
-oc adm policy add-scc-to-user hostnetwork -z router
-oc adm router qat-router --replicas=0 --ports='80:6080,443:6443' \
-    --images=openshift/origin-clearlinux-haproxy-router:latest \
-    --stats-port=61937 --host-network=false
-oc set env dc/qat-router ROUTER_SERVICE_HTTP_PORT=6080 \
-    ROUTER_SERVICE_HTTPS_PORT=6443
-oc scale dc/qat-router --replicas=1
-oc new-app qat-application.json
+oc new-project sample-app
+oc new-app -f nginx-openshift-sample-app.json
+
+printf "Waiting for building the application..."
+until oc get builds | grep Complete; do
+    printf "."
+    sleep 2
+done
+
+printf "Waiting for the creation of routes..."
+until curl -vk https://localhost -H 'Host: www.example.com'  | grep "<h1>"; do
+    printf "."
+    sleep 2
+done

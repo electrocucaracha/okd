@@ -1,0 +1,61 @@
+# SPDX-license-identifier: Apache-2.0
+##############################################################################
+# Copyright (c) 2019
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: intel-qat-plugin-config
+data:
+  DPDK_DRIVER: "vfio-pci"
+  KERNEL_VF_DRIVERS: "dh895xccvf,c6xxvf,c3xxxvf,d15xxvf"
+  MAX_NUM_DEVICES: "32"
+  DEBUG: "false"
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: intel-qat-kernel-plugin
+  labels:
+    app: intel-qat-kernel-plugin
+spec:
+  selector:
+    matchLabels:
+      app: intel-qat-kernel-plugin
+  template:
+    metadata:
+      labels:
+        app: intel-qat-kernel-plugin
+    spec:
+      containers:
+      - name: intel-qat-kernel-plugin
+        securityContext:
+          readOnlyRootFilesystem: true
+          privileged: true
+        serviceAccountName: qat-svc-account
+        image: intel/intel-qat-plugin:local
+        imagePullPolicy: IfNotPresent
+        args: ["-mode", "kernel"]
+        volumeMounts:
+        - name: devfs
+          mountPath: /dev
+        - name: etcdir
+          mountPath: /etc
+          readOnly: true
+        - name: kubeletsockets
+          mountPath: /var/lib/kubelet/device-plugins
+      volumes:
+      - name: etcdir
+        hostPath:
+          path: /etc
+      - name: kubeletsockets
+        hostPath:
+          path: /var/lib/kubelet/device-plugins
+      - name: devfs
+        hostPath:
+          path: /dev
