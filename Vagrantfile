@@ -36,6 +36,7 @@ $no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
   $no_proxy += ",192.168.121.#{i}"
 end
 $no_proxy += ",10.0.2.15,172.30.1.1"
+$socks_proxy = ENV['socks_proxy'] || ENV['SOCKS_PROXY'] || ""
 $is_qat_enabled = ENV['OKD_ENABLE_QAT'] || "false"
 
 Vagrant.configure("2") do |config|
@@ -60,6 +61,7 @@ Vagrant.configure("2") do |config|
   config.vm.provision 'shell', privileged: false do |sh|
     sh.env = {
       'DEBUG': "true",
+      'SOCKS_PROXY': "#{$socks_proxy}",
       'QAT_ENABLED': "#{$is_qat_enabled}"
     }
     sh.inline = <<-SHELL
@@ -87,8 +89,8 @@ Vagrant.configure("2") do |config|
 
   [:virtualbox, :libvirt].each do |provider|
     config.vm.provider provider do |p, override|
-      p.cpus = 8
-      p.memory = 32768
+      p.cpus = ENV['OKD_VAGRANT_CPUS'] || 8
+      p.memory = ENV['OKD_VAGRANT_MEMORY'] || 32768
     end
   end
   config.vm.provider 'libvirt' do |v, override|

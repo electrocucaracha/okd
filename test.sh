@@ -35,9 +35,15 @@ if ! command -v jq; then
     $INSTALLER_CMD jq
 fi
 
-k6 run --out json=~/results.json k6-config.js
+rm -f ~/*.txt
 for counter in $(sudo find /sys/kernel/debug -name fw_counters); do
-    sudo cat "$counter"
+    sudo cat "$counter" | tee --append ~/before.txt
+done
+k6 run k6-config.js | tee ~/k6_results.txt
+for counter in $(sudo find /sys/kernel/debug -name fw_counters); do
+    sudo cat "$counter" | tee --append ~/after.txt
 done
 
-jq '. | select(.type=="Point" and .metric == "http_req_duration" and .data.tags.status >= "200") | .data.value' ~/results.json | jq -s 'add/length'
+if [ -f ~/before.txt ] && [ -f ~/after.txt ]; then
+    diff ~/before.txt ~/after.txt
+fi
