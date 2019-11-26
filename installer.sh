@@ -17,12 +17,6 @@ fi
 
 # build_installer() - Function that create the installer binary using the source code
 function build_installer {
-    export KRD_DEBUG="${OKD_DEBUG:-false}"
-    KRD_ACTIONS+=(install_go)
-    KRD_ACTIONS_DECLARE=$(declare -p KRD_ACTIONS)
-    export KRD_ACTIONS_DECLARE
-    curl -fsSL https://raw.githubusercontent.com/electrocucaracha/krd/master/aio.sh | bash
-    export PATH="$PATH:/usr/local/go/bin"
     mkdir -p ~/go/{bin,src}
     curl -fsSL https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 
@@ -88,33 +82,17 @@ function install_terraform_matchbox_provider {
 }
 
 echo "Update repos and install dependencies..."
-COMMON_DISTRO_PKGS=(wget unzip)
+okd_pkgs="wget unzip golang"
 if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
-    COMMON_DISTRO_PKGS=(git)
+    okd_pkgs+=" gcc-c++ golang"
 fi
-# shellcheck disable=SC1091
-source /etc/os-release || source /usr/lib/os-release
-case ${ID,,} in
-    *suse)
-    INSTALLER_CMD="sudo -H -E zypper -q install -y --no-recommends ${COMMON_DISTRO_PKGS[*]}"
-    sudo zypper -n ref
-    ;;
 
-    ubuntu|debian)
-    INSTALLER_CMD="sudo -H -E apt-get -y -q=3 install ${COMMON_DISTRO_PKGS[*]}"
-    sudo apt-get update
-    ;;
-
-    rhel|centos|fedora)
-    PKG_MANAGER=$(command -v dnf || command -v yum)
-    INSTALLER_CMD="sudo -H -E ${PKG_MANAGER} -q -y install ${COMMON_DISTRO_PKGS[*]}"
-    if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
-        INSTALLER_CMD+=" gcc-c++"
-    fi
-    sudo "$PKG_MANAGER" updateinfo
-    ;;
-esac
-${INSTALLER_CMD}
+echo "Update repos and install dependencies..."
+# NOTE: This shorten link is pointing to the cURL Package manager project(https://github.com/electrocucaracha/pkg-mgr)
+export PKG_UDPATE=true
+export PKG=$okd_pkgs
+export PKG_GOLANG_VERSION=1.12.7
+curl -fsSL http://bit.ly/pkgInstall | bash
 
 install_terraform_matchbox_provider
 install_matchbox
