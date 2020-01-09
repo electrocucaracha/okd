@@ -20,19 +20,7 @@ if ! command -v k6; then
     sudo yum install -y k6
 fi
 if ! command -v jq; then
-    # shellcheck disable=SC1091
-    source /etc/os-release || source /usr/lib/os-release
-    case ${ID,,} in
-        rhel|centos|fedora)
-        PKG_MANAGER=$(command -v dnf || command -v yum)
-        INSTALLER_CMD="sudo -H -E ${PKG_MANAGER} -q -y install"
-        if ! sudo "$PKG_MANAGER" repolist | grep "epel/"; then
-            $INSTALLER_CMD epel-release
-        fi
-        sudo "$PKG_MANAGER" updateinfo
-        ;;
-    esac
-    $INSTALLER_CMD jq
+    curl -fsSL http://bit.ly/pkgInstall | PKG_UDPATE=true PKG=jq bash
 fi
 
 rm -f ~/*.txt
