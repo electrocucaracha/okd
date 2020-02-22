@@ -158,7 +158,7 @@ export PKG_UDPATE=true
 export PKG=$okd_pkgs
 export PKG_GOLANG_VERSION=1.12.7
 export PKG_DOCKER_INSECURE_REGISTRIES=172.30.0.0/16
-curl -fsSL http://bit.ly/pkgInstall | bash
+curl -fsSL http://bit.ly/install_pkg | bash
 
 enable_containers
 build_oc

@@ -92,7 +92,7 @@ echo "Update repos and install dependencies..."
 export PKG_UDPATE=true
 export PKG=$okd_pkgs
 export PKG_GOLANG_VERSION=1.12.7
-curl -fsSL http://bit.ly/pkgInstall | bash
+curl -fsSL http://bit.ly/install_pkg | bash
 
 install_terraform_matchbox_provider
 install_matchbox

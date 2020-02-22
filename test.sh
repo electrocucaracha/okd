@@ -20,7 +20,7 @@ if ! command -v k6; then
     sudo yum install -y k6
 fi
 if ! command -v jq; then
-    curl -fsSL http://bit.ly/pkgInstall | PKG_UDPATE=true PKG=jq bash
+    curl -fsSL http://bit.ly/install_pkg | PKG_UDPATE=true PKG=jq bash
 fi
 
 rm -f ~/*.txt
