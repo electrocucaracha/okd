@@ -44,7 +44,7 @@ Vagrant.configure("2") do |config|
   config.vm.provider :virtualbox
 
   config.vm.box = "centos/7"
-  config.vm.box_version = "1901.01"
+  config.vm.box_version = "1905.1"
   # Upgrade Kernel version
   config.vm.provision 'shell', privileged: false, inline: <<-SHELL
     PKG_MANAGER=$(command -v dnf || command -v yum)
