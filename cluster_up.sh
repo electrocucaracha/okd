@@ -150,7 +150,7 @@ function build_oc {
 
 okd_pkgs="docker firewalld wget krb5-devel bind-utils tito gpgme"
 okd_pkgs+=" gpgme-devel libassuan libassuan-devel git jq make gcc zip"
-okd_pkgs+=" mercurial bc rsync file createrepo openssl bsdtar golang"
+okd_pkgs+=" mercurial bc rsync file createrepo openssl bsdtar go-lang"
 
 echo "Update repos and install dependencies..."
 # NOTE: This shorten link is pointing to the cURL Package manager project(https://github.com/electrocucaracha/pkg-mgr)

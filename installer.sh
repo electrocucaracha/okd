@@ -82,9 +82,9 @@ function install_terraform_matchbox_provider {
 }
 
 echo "Update repos and install dependencies..."
-okd_pkgs="wget unzip golang"
+okd_pkgs="wget unzip go-lang"
 if [ "${OKD_SOURCE:-tarball}" == "source" ]; then
-    okd_pkgs+=" gcc-c++ golang"
+    okd_pkgs+=" gcc-c++"
 fi
 
 echo "Update repos and install dependencies..."
