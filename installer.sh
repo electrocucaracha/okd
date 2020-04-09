@@ -89,7 +89,7 @@ fi
 
 echo "Update repos and install dependencies..."
 # NOTE: This shorten link is pointing to the cURL Package manager project(https://github.com/electrocucaracha/pkg-mgr)
-export PKG_UDPATE=true
+export PKG_UPDATE=true
 export PKG=$okd_pkgs
 export PKG_GOLANG_VERSION=1.12.7
 curl -fsSL http://bit.ly/install_pkg | bash
